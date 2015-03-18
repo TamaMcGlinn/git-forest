@@ -110,7 +110,7 @@ sub process
 		chomp $line;
 		my($sha, $mini_sha, $parents, $msg) =
 			($line =~ /^<(.*?)><(.*?)><(.*?)>(.*)/s);
-		my @next_sha = map { ($_) = /^<(.*?)>/ } @next_sha;
+		my @next_sha = map { ($_) = m{^<(.*?)>} } @next_sha;
 		my @parents = split(" ", $parents);
 
 		&vine_branch(\@vine, $sha);
@@ -133,6 +133,20 @@ sub process
 		&vine_merge(\@vine, $sha, \@next_sha, \@parents);
 	}
 	$Repo->command_close_pipe($fh, $fhc);
+}
+
+sub get_next_pick
+{
+	my $fh = shift @_;
+	while (defined(my $line = <$fh>)) {
+		if ($line =~ /^\s*#/) {
+			next;
+		}
+		if ($line =~ /^\S+\s+(\S+)/) {
+			return $2;
+		}
+	}
+	return undef;
 }
 
 sub get_refs
@@ -169,9 +183,12 @@ sub get_refs
 		if (open(my $act_fh, $Repo->repo_path().
 		    "/rebase-merge/git-rebase-todo")) {
 			my($curr) = (<$act_fh> =~ /^\S+\s+(\S+)/);
-			$curr = $Repo->command("rev-parse", $curr);
-			chomp $curr;
-			unshift(@{$ret->{$curr}}, "rebase/next");
+			$curr = &get_next_pick($act_fh);
+			if (defined($curr)) {
+				$curr = $Repo->command("rev-parse", $curr);
+				chomp $curr;
+				unshift(@{$ret->{$curr}}, "rebase/next");
+			}
 			close $act_fh;
 		}
 
