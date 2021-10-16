@@ -12,8 +12,10 @@
 use Getopt::Long;
 use Git;
 use strict;
-use encoding "utf8";
+use utf8;
+use Encode qw(encode);
 my $Repo          = Git->repository($ENV{"GIT_DIR"} || ".");
+my $No_print_refs = $ENV{"NO_PRINT_REFS"} || "false";
 my $Pretty_fmt    = "format:%s";
 my $Reverse_order = 0;
 my $Show_all      = 0;
@@ -119,12 +121,14 @@ sub process
 		if (exists($refs->{$sha})) {
 			print &vis_post(&vis_commit($ra),
 			      $Color{at}."m".$Color{default});
-			&ref_print($refs->{$sha});
+			if ($No_print_refs ne "true") {
+				&ref_print($refs->{$sha});
+			}
 		} else {
 			print &vis_post(&vis_commit($ra, " "));
 		}
 		if ($With_sha) {
-			print $msg, $Color{at}, "──(", $Color{sha}, $mini_sha,
+			print $msg, $Color{at}, encode('UTF-8', "──("), $Color{sha}, $mini_sha,
 			      $Color{at}, ")", $Color{default}, "\n";
 		} else {
 			print $msg, "\n";
@@ -229,7 +233,7 @@ sub ref_print
 		} elsif ($symbol =~ m{^refs/(.*)}s) {
 			print $Color{ref}, $1;
 		}
-		print $Color{at}, "]──", $Color{default};
+		print $Color{at}, encode('UTF-8', "]──"), $Color{default};
 	}
 }
 
@@ -594,7 +598,7 @@ sub vis_post
 		$s .= $f;
 	}
 
-	return $Color{tree}, $s, $Color{default};
+	return $Color{tree}, encode('UTF-8', $s), $Color{default};
 }
 
 sub remove_trailing_blanks
@@ -635,7 +639,6 @@ sub TIEHANDLE
 	my $self  = {};
 
 	open($self->{fh}, ">&STDOUT");
-	binmode $self->{fh}, ":utf8";
 
 	return bless $self, $class;
 }
@@ -653,6 +656,7 @@ sub UNTIE
 	my $self = shift @_;
 	my $fh   = $self->{fh};
 
-	print $fh join($/, reverse split(/\n/s, $self->{saved})), "\n";
+	print $fh join($/, reverse split(/\n/s, $self->{saved}));
+	print $fh "\n";
 	undef $self->{saved};
 }
