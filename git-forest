@@ -131,7 +131,7 @@ sub process
 {
 	my(@vine);
 	my $refs = &get_refs();
-	my($fh, $fhc) = $Repo->command_output_pipe("log", "--date-order",
+	my($fh, $fhc) = $Repo->command_output_pipe("log", "--parents", "--date-order",
 	                "--pretty=format:<%H><%h><%P>$Pretty_fmt", @ARGV);
 
 	while (my($line, @next_sha) = get_line_block($fh, $Subvine_depth)) {
