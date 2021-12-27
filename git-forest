@@ -15,8 +15,6 @@ use strict;
 use utf8;
 use Encode qw(encode);
 my $Repo          = Git->repository($ENV{"GIT_DIR"} || ".");
-my $No_print_refs = $ENV{"NO_PRINT_REFS"} || "false";
-# my $Pretty_fmt    = "format:%s";
 my $Pretty_fmt    = "format:%H\t%at\t%an\t%C(reset)%C(auto)%d%C(reset)\t%s";
 my $Reverse_order = 0;
 my $Show_all      = 0;
@@ -130,7 +128,6 @@ sub get_line_block
 sub process
 {
 	my(@vine);
-	my $refs = &get_refs();
 	my($fh, $fhc) = $Repo->command_output_pipe("log", "--parents", "--date-order",
 	                "--pretty=format:<%H><%h><%P>$Pretty_fmt", @ARGV);
 
@@ -147,15 +144,8 @@ sub process
 		&vine_branch(\@vine, $sha);
 		my $ra = &vine_commit(\@vine, $sha, \@parents);
 
-		if (exists($refs->{$sha})) {
-			print &vis_post(&vis_commit($ra),
-			      $Color{at}."m".$Color{default});
-			if ($No_print_refs ne "true") {
-				&ref_print($refs->{$sha});
-			}
-		} else {
-			print &vis_post(&vis_commit($ra, " "));
-		}
+		print &vis_post(&vis_commit($ra, " "));
+
 		if ($With_sha) {
 			print $msg, $Color{at}, encode('UTF-8', "──("), $Color{sha}, $mini_sha,
 			      $Color{at}, ")", $Color{default}, "\n";
@@ -166,104 +156,6 @@ sub process
 		&vine_merge(\@vine, $sha, \@next_sha, \@parents);
 	}
 	$Repo->command_close_pipe($fh, $fhc);
-}
-
-sub get_next_pick
-{
-	my $fh = shift @_;
-	while (defined(my $line = <$fh>)) {
-		if ($line =~ /^\s*#/) {
-			next;
-		}
-		if ($line =~ /^\S+\s+(\S+)/) {
-			return $2;
-		}
-	}
-	return undef;
-}
-
-sub get_refs
-{
-	my($fh, $c) = $Repo->command_output_pipe("show-ref");
-	my $ret = {};
-
-	while (defined(my $ln = <$fh>)) {
-		chomp $ln;
-		if (length($ln) == 0) {
-			next;
-		}
-
-		my($sha, $name) = ($ln =~ /^(\S+)\s+(.*)/s);
-		if (!exists($ret->{$sha})) {
-			$ret->{$sha} = [];
-		}
-		push(@{$ret->{$sha}}, $name);
-		if ($name =~ m{^refs/tags/}) {
-			my $sub_sha = $Repo->command("log", "-1",
-			              "--pretty=format:%H", $name);
-			chomp $sub_sha;
-			if ($sha ne $sub_sha) {
-				push(@{$ret->{$sub_sha}}, $name);
-			}
-		}
-	}
-
-	$Repo->command_close_pipe($fh, $c);
-
-	my $rebase = -e $Repo->repo_path()."/rebase-merge/git-rebase-todo" &&
-	             $Show_rebase;
-	if ($rebase) {
-		if (open(my $act_fh, $Repo->repo_path().
-		    "/rebase-merge/git-rebase-todo")) {
-			my($curr) = (<$act_fh> =~ /^\S+\s+(\S+)/);
-			$curr = &get_next_pick($act_fh);
-			if (defined($curr)) {
-				$curr = $Repo->command("rev-parse", $curr);
-				chomp $curr;
-				unshift(@{$ret->{$curr}}, "rebase/next");
-			}
-			close $act_fh;
-		}
-
-		chomp(my $onto = $Repo->command("rev-parse", "rebase-merge/onto"));
-		unshift(@{$ret->{$onto}}, "rebase/onto");
-	}
-
-	my $head = $Repo->command("rev-parse", "HEAD");
-	chomp $head;
-	if ($rebase) {
-		unshift(@{$ret->{$head}}, "rebase/new");
-	}
-	unshift(@{$ret->{$head}}, "HEAD");
-
-	return $ret;
-}
-
-#
-# ref_print - print a ref with color
-# @s:	ref name
-#
-sub ref_print
-{
-	foreach my $symbol (@{shift @_}) {
-		print $Color{at}, "[";
-		if ($symbol eq "HEAD" || $symbol =~ m{^rebase/}) {
-			print $Color{hhead}, $symbol;
-		} elsif ($symbol =~ m{^refs/remotes/([^/]+)/(.*)}s) {
-			if ($Color{remote} eq "") {
-				print "remotes/$1/$2";
-			} else {
-				print $Color{remote}, "$1/", $Color{head}, "$2";
-			}
-		} elsif ($symbol =~ m{^refs/heads/(.*)}s) {
-			print $Color{head}, $1;
-		} elsif ($symbol =~ m{^refs/tags/(.*)}s) {
-			print $Color{tag}, $1;
-		} elsif ($symbol =~ m{^refs/(.*)}s) {
-			print $Color{ref}, $1;
-		}
-		print $Color{at}, encode('UTF-8', "]──"), $Color{default};
-	}
 }
 
 #
