@@ -100,7 +100,7 @@ sub get_line_block
 sub process
 {
 	my(@vine);
-	my($fh, $fhc) = $Repo->command_output_pipe("log", "--parents", "--date-order",
+	my($fh, $fhc) = $Repo->command_output_pipe("log", "--parents", "--topo-order",
 	                "--pretty=format:<%H><%h><%P>$Pretty_fmt", @ARGV);
 
 	while (my($line, @next_sha) = get_line_block($fh, $Subvine_depth)) {
